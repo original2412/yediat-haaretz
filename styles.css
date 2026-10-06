@@ -4,7 +4,7 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font-
 body { display:flex; flex-direction:column; }
 header { padding:6px 8px; background:var(--card); }
 .tabs { display:flex; gap:4px; }
-.tabs button { flex:1; padding:8px 4px; border:0; border-radius:8px; background:#24506e; color:var(--fg); font-size:15px; }
+.tabs button { flex:1; padding:8px 2px; border:0; border-radius:8px; background:#24506e; color:var(--fg); font-size:15px; }
 .tabs button.on { background:var(--acc); font-weight:700; }
 .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:6px; font-size:13px; }
 select { background:#24506e; color:var(--fg); border:0; border-radius:6px; padding:4px; }

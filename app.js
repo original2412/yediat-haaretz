@@ -42,6 +42,59 @@ const hatmarOf = ll => HATMARIM.find(h => turf.booleanPointInPolygon(turf.point(
 const ARAB_CITIES = new Set(HATMARIM.map(h => h.city));
 ITEMS.forEach(it => { if (it.p && !['ירושלים', 'מעלה גלבוע'].includes(it.name)) it.hatmar = hatmarOf(it.p); });
 
+const REGIONS = window.REGIONS.map(r => ({ ...r, feat: turf.polygon([[...r.poly, r.poly[0]].map(ll2pt)]) }));
+const regionOf = ll => { const pt = turf.point(ll2pt(ll)); const r = REGIONS.find(r => turf.booleanPointInPolygon(pt, r.feat)); return r && r.n; };
+REGIONS.forEach(r => ITEMS.push({ id: 'r:' + r.n, cat: 'regions', name: r.n, feat: r.feat, bubbles: [] }));
+ITEMS.forEach(it => { if (it.p) it.region = regionOf(it.p); });
+
+// מוצא ושפך במילים: ליד איזה יישוב/הר, באיזה אזור, ולאן הנחל נשפך.
+const GAZ = ITEMS.filter(it => it.cat === 'settlements' || it.cat === 'mountains');
+const MED_COAST = turf.lineString([[35.10,33.09],[35.07,32.92],[35.02,32.83],[34.96,32.82],[34.93,32.70],[34.89,32.50],[34.77,32.10],[34.63,31.80],[34.50,31.60],[34.22,31.32]]);
+const EGYPT_BORDER = turf.lineString([[34.24, 31.32], [34.41, 30.87], [34.60, 30.30], [34.90, 29.49]]);
+function inEgypt([lat, lng]) {
+  const c = EGYPT_BORDER.geometry.coordinates;
+  for (let i = 0; i < c.length - 1; i++) {
+    const [x1, y1] = c[i], [x2, y2] = c[i + 1];
+    if (lat <= y1 && lat >= y2) return lng < x1 + (x2 - x1) * (y1 - lat) / (y1 - y2) - 0.01;
+  }
+  return false;
+}
+function nearPlace(ll) {
+  if (inEgypt(ll)) return 'סיני (מצרים)';
+  const pt = turf.point(ll2pt(ll));
+  let best = null, bd = 1e9;
+  GAZ.forEach(g => { const d = turf.distance(pt, turf.point(ll2pt(g.p))); if (d < bd) { bd = d; best = g; } });
+  const reg = regionOf(ll);
+  const near = bd < 2 ? best.name : bd < 15 ? `ליד ${best.name}` : '';
+  return [reg, near].filter(Boolean).join(', ') || 'לא ידוע';
+}
+function outlet(s) {
+  const [lat, lng] = s.end, pt = turf.point(ll2pt(s.end));
+  let best = null, bd = 0.5;
+  window.STREAMS.forEach(o => {
+    if (o.n === s.name) return;
+    o.lines.forEach(l => { if (l.length < 2) return; const d = turf.pointToLineDistance(pt, turf.lineString(l.map(ll2pt))); if (d < bd) { bd = d; best = o.n; } });
+  });
+  if (best) return `נשפך ל${best}`;
+  if (inEgypt(s.end)) return 'נשפך לסיני (מצרים)';
+  const reg = regionOf(s.end);
+  if (turf.pointToLineDistance(pt, MED_COAST) < 2.5) return 'נשפך לים התיכון';
+  if (lat < 29.62) return 'נשפך למפרץ אילת';
+  if (turf.distance(pt, turf.point([35.59, 32.82])) < 9) return 'נשפך לכנרת';
+  if (reg === 'עמק החולה') return 'נשפך לנהר הירדן (בעמק החולה)';
+  if (lat > 32.86 && lat < 33.05 && lng > 35.55 && lng < 35.66) return 'נשפך לנהר הירדן (צפונית לכנרת)';
+  if (reg === 'ים המלח' || (lat > 31.0 && lat < 31.8 && lng > 35.30 && reg === 'מדבר יהודה')) return 'נשפך לים המלח';
+  if (lat >= 31.8 && lat < 32.75 && lng > 35.5) return 'נשפך לנהר הירדן';
+  if (lat < 31.0 && lng > 35.1) return 'נשפך לערבה (נחל ערבה)';
+  return `מסתיים ${nearPlace(s.end)}`;
+}
+ITEMS.filter(it => it.cat === 'streams').forEach(it => {
+  const note = window.STREAM_NOTES[it.name] || {};
+  it.from = note.from || nearPlace(it.start);
+  it.to = note.to || outlet(it);
+  it.region = regionOf(it.start);
+});
+
 // ---------- סטטיסטיקה (חזרה מרווחת פשוטה) ----------
 let stats = {};
 try { stats = JSON.parse(localStorage.getItem('yh-stats') || '{}'); } catch (e) {}
@@ -81,7 +134,11 @@ $('#showBubbles').onchange = e => e.target.checked ? bubbleLayer.addTo(map) : ma
 const overlay = L.layerGroup().addTo(map);
 
 function drawItem(it, color = '#00e0ff', fit = true) {
-  if (it.lines) {
+  if (it.feat) {
+    const pg = L.geoJSON(it.feat, { style: { color, weight: 3, fillOpacity: .2 } }).addTo(overlay)
+      .bindTooltip(it.name, { permanent: true, className: 'lbl' });
+    if (fit) map.fitBounds(pg.getBounds(), { padding: [30, 30] });
+  } else if (it.lines) {
     const pl = L.polyline(it.lines, { color, weight: 5, opacity: .9 }).addTo(overlay);
     L.circleMarker(it.start, { radius: 8, color: '#2ecc71', fillOpacity: 1 }).addTo(overlay)
       .bindTooltip('התחלה', { permanent: true, direction: 'top', className: 'lbl' });
@@ -105,10 +162,13 @@ function infoHtml(it) {
   const rows = [];
   if (it.lines) {
     rows.push(`<b>אורך:</b> כ-${it.km} ק"מ`);
-    rows.push(`<b>מתחיל:</b> ${it.startB.map(short).join(', ') || 'מחוץ לבועות'}`);
-    rows.push(`<b>מסתיים:</b> ${it.endB.map(short).join(', ') || 'מחוץ לבועות'}`);
+    rows.push(`<b>מתחיל:</b> ${it.from}`);
+    rows.push(`<b>מסתיים:</b> ${it.to}`);
     rows.push(`<b>עובר בבועות:</b> ${it.bubbles.map(short).join(', ') || '—'}`);
+  } else if (it.feat) {
+    return '';
   } else {
+    if (it.region) rows.push(`<b>אזור:</b> ${it.region}`);
     rows.push(`<b>בועה:</b> ${it.bubbles.map(short).join(', ') || 'מחוץ לבועות'}`);
   }
   if (it.zones && it.zones.length) rows.push(`<b>שטחי אש סמוכים:</b> ${it.zones.join(', ')}`);
@@ -148,22 +208,24 @@ const distractors = (all, correct, n = 3) => shuffle(all.filter(x => x !== corre
 const MODES = {
   locate() {
     const it = cur = weighted(pool());
-    $('#q').innerHTML = `איפה ${it.name}?<small>לחץ על המפה${it.lines ? ' (בכל נקודה לאורך הנחל)' : ''}</small>`;
+    $('#q').innerHTML = `איפה ${it.name}?<small>לחץ על המפה${it.lines ? ' (בכל נקודה לאורך הנחל)' : it.feat ? ' (בתוך האזור)' : ''}</small>`;
     onMapClick = ll => {
       onMapClick = null;
       const pt = turf.point(ll2pt(ll));
-      const km = it.lines ? Math.min(...it.lines.filter(l => l.length > 1).map(l => turf.pointToLineDistance(pt, turf.lineString(l.map(ll2pt)))))
+      const km = it.feat ? (turf.booleanPointInPolygon(pt, it.feat) ? 0 : turf.pointToLineDistance(pt, turf.polygonToLine(it.feat)))
+               : it.lines ? Math.min(...it.lines.filter(l => l.length > 1).map(l => turf.pointToLineDistance(pt, turf.lineString(l.map(ll2pt)))))
                          : turf.distance(pt, turf.point(ll2pt(it.p)));
       const ok = km <= (it.cat === 'zones' ? 5 : 3);
       record(it.id, ok);
       L.circleMarker(ll, { radius: 7, color: '#fff', weight: 3, fillColor: '#ffb400', fillOpacity: 1 }).addTo(overlay).bindTooltip('הלחיצה שלך', { className: 'lbl' });
       drawItem(it, ok ? '#2ecc71' : '#ff5c5c', false);
-      map.fitBounds(L.latLngBounds([ll, ...(it.lines ? it.lines.flat() : [it.p])]), { padding: [50, 50], maxZoom: 11 });
+      const pts = it.feat ? it.feat.geometry.coordinates[0].map(([x, y]) => [y, x]) : it.lines ? it.lines.flat() : [it.p];
+      map.fitBounds(L.latLngBounds([ll, ...pts]), { padding: [50, 50], maxZoom: 11 });
       $('#fb').innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${ok ? 'נכון!' : 'לא מדויק'}</span> מרחק: ${km.toFixed(1)} ק"מ<br>${infoHtml(it)}`;
     };
   },
   bubble() {
-    const list = pool().filter(it => (it.lines ? it.startB : it.bubbles).length);
+    const list = pool().filter(it => !it.lines && it.bubbles.length);
     const it = cur = weighted(list);
     const correctList = it.lines ? it.startB : it.bubbles;
     const correct = short(correctList[0]);
@@ -209,6 +271,32 @@ const MODES = {
       };
     }
   },
+  region() {
+    const list = pool().filter(it => it.region || it.lines);
+    const it = cur = weighted(list);
+    const kinds = it.lines ? ['from', 'to', 'region'] : ['region'];
+    const kind = pick(kinds);
+    const regions = REGIONS.map(r => r.n);
+    let q, correct, opts;
+    if (kind === 'region') {
+      q = it.lines ? `באיזה אזור מתחיל ${it.name}?` : `באיזה אזור נמצא ${it.name}?`;
+      correct = it.region; opts = distractors(regions, correct);
+    } else {
+      const streams = ITEMS.filter(x => x.lines);
+      const key = kind;
+      q = kind === 'from' ? `מאיפה מתחיל ${it.name}?` : `איפה מסתיים ${it.name}?`;
+      correct = it[key];
+      opts = shuffle([...new Set(streams.map(x => x[key]).filter(v => v !== correct))]).slice(0, 3).concat(correct);
+    }
+    if (!correct) return MODES.region();
+    $('#q').innerHTML = q;
+    choices(opts, correct, ok => {
+      record(it.id + '#' + kind, ok);
+      drawItem(it);
+      if (it.region) { const r = REGIONS.find(r => r.n === it.region); if (r) L.geoJSON(r.feat, { style: { color: '#ffb400', weight: 2, fillOpacity: .08, dashArray: '4 4' } }).addTo(overlay); }
+      $('#fb').innerHTML = infoHtml(it);
+    });
+  },
   explore() {
     $('#q').innerHTML = 'עיון חופשי<small>בחר מקום מהרשימה כדי לראות אותו על המפה</small>';
     renderList();
@@ -225,7 +313,7 @@ function renderList() {
     li.onclick = fn; ul.appendChild(li);
   };
   hat.forEach(h => add(h.n, h.city, () => { overlay.clearLayers(); drawHatmar(h); $('#fb').innerHTML = `עיר מרכזית: ${h.city}`; }));
-  items.forEach(it => add(it.name, (it.bubbles[0] ? short(it.bubbles[0]) : ''), () => {
+  items.forEach(it => add(it.name, it.region || (it.bubbles[0] ? short(it.bubbles[0]) : ''), () => {
     overlay.clearLayers(); drawItem(it); $('#fb').innerHTML = infoHtml(it);
   }));
 }
