@@ -247,3 +247,37 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
 next();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');
+
+// ---------- הורדת מפת המסוקים לשימוש בלי רשת ----------
+function tileList() {
+  const out = [], [s, w, n, e] = [29.45, 34.2, 33.35, 35.95];
+  const tx = (lng, z) => Math.floor((lng + 180) / 360 * 2 ** z);
+  const ty = (lat, z) => { const r = lat * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * 2 ** z); };
+  for (let z = 7; z <= 12; z++)
+    for (let x = tx(w, z); x <= tx(e, z); x++)
+      for (let y = ty(n, z); y <= ty(s, z); y++) out.push(`https://flight-maps.com/tiles/il-hel/${z}/${x}/${y}.png`);
+  return out;
+}
+async function downloadMap() {
+  const btn = $('#offline'), urls = tileList();
+  let done = 0, failed = 0, i = 0;
+  btn.disabled = true;
+  const worker = async () => {
+    while (i < urls.length) {
+      const u = urls[i++];
+      try { await fetch(u, { mode: 'no-cors' }); } catch (e) { failed++; }
+      btn.textContent = `מוריד… ${Math.round(++done / urls.length * 100)}%`;
+    }
+  };
+  await Promise.all(Array.from({ length: 6 }, worker));
+  btn.textContent = failed ? `✓ הורד (${failed} נכשלו — נסה שוב)` : '✓ המפה שמורה';
+  btn.disabled = false;
+  try { localStorage.setItem('yh-offline', '1'); } catch (e) {}
+}
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.ready.then(() => {
+    const b = $('#offline'); b.hidden = false;
+    try { if (localStorage.getItem('yh-offline')) b.textContent = '✓ המפה שמורה (עדכן)'; } catch (e) {}
+    b.onclick = () => { if (navigator.serviceWorker.controller) downloadMap(); else location.reload(); };
+  });
+}

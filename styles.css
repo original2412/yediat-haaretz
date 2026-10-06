@@ -25,3 +25,4 @@ select { background:#24506e; color:var(--fg); border:0; border-radius:6px; paddi
 #list li { padding:7px 4px; border-bottom:1px solid #24506e; cursor:pointer; }
 #list li span { opacity:.7; font-size:12px; margin-inline-start:6px; }
 .lbl { background:rgba(15,36,51,.85); color:#fff; border:0; font-weight:700; }
+#offline { background:#24506e; color:var(--fg); border:0; border-radius:6px; padding:4px 8px; font-size:13px; }
