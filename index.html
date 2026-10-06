@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="theme-color" content="#14324a">
+<link rel="manifest" href="manifest.json">
+<title>ידיעת הארץ</title>
+<link rel="stylesheet" href="vendor/leaflet.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <div class="tabs">
+    <button data-mode="locate" class="on">איפה זה?</button>
+    <button data-mode="bubble">איזו בועה?</button>
+    <button data-mode="hatmar">חטמ"רים</button>
+    <button data-mode="explore">עיון</button>
+  </div>
+  <div class="row">
+    <select id="cat">
+      <option value="all">הכל</option>
+      <option value="streams">נחלים</option>
+      <option value="settlements">יישובים</option>
+      <option value="mountains">הרים ונקודות</option>
+      <option value="zones">שטחי אש</option>
+    </select>
+    <select id="base">
+      <option value="heli">מפת מסוקים</option>
+      <option value="silent">מפה אילמת</option>
+      <option value="sat">לוויין</option>
+    </select>
+    <label><input type="checkbox" id="showBubbles"> גבולות בועות</label>
+    <span id="score"></span>
+  </div>
+</header>
+<div id="map"></div>
+<section id="panel">
+  <div id="q"></div>
+  <div id="choices"></div>
+  <div id="fb"></div>
+  <div class="actions">
+    <button id="next">הבא ←</button>
+  </div>
+  <div id="explore" hidden>
+    <input id="search" placeholder="חיפוש מקום…">
+    <ul id="list"></ul>
+  </div>
+</section>
+<script src="vendor/leaflet.js"></script>
+<script src="vendor/turf.min.js"></script>
+<script src="data/layers.js"></script>
+<script src="data/places.js"></script>
+<script src="data/streams.js"></script>
+<script src="data/hatmarim.js"></script>
+<script src="data/zones.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
