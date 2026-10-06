@@ -29,8 +29,9 @@ window.STREAMS.forEach(s => ITEMS.push({
   bubbles: bubblesOnLine(s.lines), startB: bubblesAtPoint(s.start), endB: bubblesAtPoint(s.end),
 }));
 P.mountains.forEach(m => ITEMS.push({ id: 'm:' + m.n, cat: 'mountains', name: m.n, p: m.p, bubbles: bubblesAtPoint(m.p) }));
-P.settlements.forEach(([n, lat, lng]) => ITEMS.push({
-  id: 'y:' + n, cat: 'settlements', name: n, p: [lat, lng],
+const CORE = new Set(P.settlements.map(s => s[0]));
+window.SETTLEMENTS.forEach(([n, lat, lng]) => ITEMS.push({
+  id: 'y:' + n, cat: 'settlements', core: CORE.has(n), name: n, p: [lat, lng],
   bubbles: bubblesAtPoint([lat, lng]), zones: zonesNear([lat, lng], 4),
 }));
 window.ZONES.forEach(z => ITEMS.push({
@@ -48,7 +49,7 @@ REGIONS.forEach(r => ITEMS.push({ id: 'r:' + r.n, cat: 'regions', name: r.n, fea
 ITEMS.forEach(it => { if (it.p) it.region = regionOf(it.p); });
 
 // מוצא ושפך במילים: ליד איזה יישוב/הר, באיזה אזור, ולאן הנחל נשפך.
-const GAZ = ITEMS.filter(it => it.cat === 'settlements' || it.cat === 'mountains');
+const GAZ = ITEMS.filter(it => it.core || it.cat === 'mountains');
 const MED_COAST = turf.lineString([[35.10,33.09],[35.07,32.92],[35.02,32.83],[34.96,32.82],[34.93,32.70],[34.89,32.50],[34.77,32.10],[34.63,31.80],[34.50,31.60],[34.22,31.32]]);
 const EGYPT_BORDER = turf.lineString([[34.24, 31.32], [34.41, 30.87], [34.60, 30.30], [34.90, 29.49]]);
 function inEgypt([lat, lng]) {
@@ -105,8 +106,21 @@ function record(id, ok) {
   session.n++; if (ok) session.ok++;
   $('#score').textContent = `${session.ok}/${session.n}`;
 }
-const weight = id => { const s = stats[id]; return s ? Math.max(0.3, 1 + 3 * s.w - s.c) : 2; };
-function weighted(list) {
+const weight = id => { const s = stats[id]; return s ? Math.max(0.3, Math.min(4, 1 + 1.5 * s.w - s.c)) : 1.5; };
+const recent = [];
+function weighted(all) {
+  let list = all.filter(it => !recent.includes(it.id));
+  if (!list.length) list = all;
+  if ($('#cat').value === 'all') {
+    const cats = [...new Set(list.map(it => it.cat))];
+    const c = pick(cats);
+    list = list.filter(it => it.cat === c);
+  }
+  const it = weightedPick(list);
+  recent.push(it.id); if (recent.length > Math.min(40, Math.floor(all.length / 2))) recent.shift();
+  return it;
+}
+function weightedPick(list) {
   let r = Math.random() * list.reduce((a, it) => a + weight(it.id), 0);
   for (const it of list) { r -= weight(it.id); if (r <= 0) return it; }
   return list[list.length - 1];
@@ -181,7 +195,9 @@ function infoHtml(it) {
 let mode = 'locate', cur = null, onMapClick = null;
 const pool = () => {
   const c = $('#cat').value;
-  return ITEMS.filter(it => c === 'all' || it.cat === c);
+  if (c === 'core') return ITEMS.filter(it => it.core);
+  if (c === 'all') return ITEMS.filter(it => it.cat !== 'settlements' || it.core);
+  return ITEMS.filter(it => it.cat === c);
 };
 map.on('click', e => onMapClick && onMapClick([e.latlng.lat, e.latlng.lng]));
 
