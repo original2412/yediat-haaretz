@@ -26,3 +26,20 @@ select { background:#24506e; color:var(--fg); border:0; border-radius:6px; paddi
 #list li span { opacity:.7; font-size:12px; margin-inline-start:6px; }
 .lbl { background:rgba(15,36,51,.85); color:#fff; border:0; font-weight:700; }
 #offline { background:#24506e; color:var(--fg); border:0; border-radius:6px; padding:4px 8px; font-size:13px; }
+
+.areas { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.areas button { padding:9px 12px; border:0; border-radius:8px; background:#24506e; color:var(--fg); font-size:15px; }
+.areas button span { display:block; font-size:11px; opacity:.7; }
+.sub { margin-top:10px; font-size:13px; opacity:.85; font-weight:700; }
+.addrow { display:flex; gap:6px; margin-top:8px; }
+.addrow input { flex:1; padding:9px; border-radius:8px; border:0; font-size:16px; }
+.addrow button, #ldone, #lagain { padding:9px 14px; border:0; border-radius:8px; background:var(--acc); color:#fff; font-size:15px; font-weight:700; }
+button.ghost { background:transparent !important; color:var(--fg) !important; border:1px solid #24506e !important; }
+#lcount { margin-top:6px; font-weight:700; }
+#lmsg { min-height:22px; margin-top:4px; }
+#lmsg .ok, .chips .ok { color:var(--ok); font-weight:700; } #lmsg .bad { color:var(--bad); } #lmsg .muted { opacity:.7; }
+#chips, .chips { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.chip { background:#1e6b45; padding:3px 8px; border-radius:12px; font-size:13px; cursor:pointer; }
+.chip.warn { background:#8a5b00; } .chip.dim { background:#24506e; }
+details { margin-top:10px; font-size:13px; } summary { cursor:pointer; }
+.tabs { flex-wrap:wrap; } .tabs button { font-size:14px; min-width:60px; }

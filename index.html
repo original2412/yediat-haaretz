@@ -16,6 +16,7 @@
     <button data-mode="bubble">איזו בועה?</button>
     <button data-mode="region">אזור</button>
     <button data-mode="hatmar">חטמ"רים</button>
+    <button data-mode="list">רשימה</button>
     <button data-mode="explore">עיון</button>
   </div>
   <div class="row">
@@ -26,7 +27,6 @@
       <option value="settlements">כל היישובים (1,400)</option>
       <option value="mountains">הרים ונקודות</option>
       <option value="regions">אזורים</option>
-      <option value="zones">שטחי אש</option>
     </select>
     <select id="base">
       <option value="heli">מפת מסוקים</option>
@@ -46,6 +46,7 @@
   <div class="actions">
     <button id="next">הבא ←</button>
   </div>
+  <div id="listmode" hidden></div>
   <div id="explore" hidden>
     <input id="search" placeholder="חיפוש מקום…">
     <ul id="list"></ul>
@@ -60,6 +61,8 @@
 <script src="data/hatmarim.js"></script>
 <script src="data/zones.js"></script>
 <script src="data/regions.js"></script>
+<script src="data/lists.js"></script>
 <script src="app.js"></script>
+<script src="list.js"></script>
 </body>
 </html>

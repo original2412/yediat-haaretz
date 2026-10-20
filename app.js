@@ -34,10 +34,6 @@ window.SETTLEMENTS.forEach(([n, lat, lng]) => ITEMS.push({
   id: 'y:' + n, cat: 'settlements', core: CORE.has(n), name: n, p: [lat, lng],
   bubbles: bubblesAtPoint([lat, lng]), zones: zonesNear([lat, lng], 4),
 }));
-window.ZONES.forEach(z => ITEMS.push({
-  id: 'z:' + z.name, cat: 'zones', name: z.name, p: [z.center[1], z.center[0]],
-  bubbles: z.bubbleCodes.map(c => BUBBLE_BY_CODE[c]).filter(Boolean), note: z.notes,
-}));
 const HATMARIM = window.HATMARIM.features.map(f => ({ ...f.properties, feat: f }));
 const hatmarOf = ll => HATMARIM.find(h => turf.booleanPointInPolygon(turf.point(ll2pt(ll)), h.feat));
 const ARAB_CITIES = new Set(HATMARIM.map(h => h.city));
@@ -338,8 +334,10 @@ $('#search').oninput = renderList;
 function next() {
   reset();
   $('#explore').hidden = mode !== 'explore';
-  $('#next').hidden = mode === 'explore';
-  $('#cat').disabled = mode === 'hatmar';
+  $('#listmode').hidden = mode !== 'list';
+  $('#listmode').innerHTML = '';
+  $('#next').hidden = mode === 'explore' || mode === 'list';
+  $('#cat').disabled = mode === 'hatmar' || mode === 'list';
   MODES[mode]();
 }
 $('#next').onclick = next;
