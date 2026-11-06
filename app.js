@@ -95,13 +95,21 @@ ITEMS.filter(it => it.cat === 'streams').forEach(it => {
 // ---------- סטטיסטיקה (חזרה מרווחת פשוטה) ----------
 let stats = {};
 try { stats = JSON.parse(localStorage.getItem('yh-stats') || '{}'); } catch (e) {}
-function record(id, ok) {
+// ניקוד: 100 נק' לפגיעה מדויקת, יורד ככל שהלחיצה רחוקה יותר (~70 ב-3 ק"מ, ~25 ב-10 ק"מ).
+const pointsFor = km => km <= 0.5 ? 100 : Math.max(0, Math.round(100 * Math.exp(-(km - 0.5) / 7)));
+function record(id, ok, pts = ok ? 100 : 0) {
   const s = stats[id] || (stats[id] = { c: 0, w: 0 });
   ok ? s.c++ : s.w++;
   try { localStorage.setItem('yh-stats', JSON.stringify(stats)); } catch (e) {}
   session.n++; if (ok) session.ok++;
-  $('#score').textContent = `${session.ok}/${session.n}`;
+  session.pts += pts;
+  session.streak = ok ? session.streak + 1 : 0;
+  if (session.pts > best) { best = session.pts; try { localStorage.setItem('yh-best', best); } catch (e) {} }
+  $('#score').innerHTML = `⭐ ${session.pts} <small>(${session.ok}/${session.n}${session.streak > 1 ? ` · 🔥${session.streak}` : ''} · שיא ${best})</small>`;
+  return pts;
 }
+let best = 0;
+try { best = +localStorage.getItem('yh-best') || 0; } catch (e) {}
 const weight = id => { const s = stats[id]; return s ? Math.max(0.3, Math.min(4, 1 + 1.5 * s.w - s.c)) : 1.5; };
 const recent = [];
 function weighted(all) {
@@ -121,7 +129,7 @@ function weightedPick(list) {
   for (const it of list) { r -= weight(it.id); if (r <= 0) return it; }
   return list[list.length - 1];
 }
-const session = { n: 0, ok: 0 };
+const session = { n: 0, ok: 0, pts: 0, streak: 0 };
 
 // ---------- מפה ----------
 const map = L.map('map', { zoomControl: false, attributionControl: false, minZoom: 7, maxZoom: 14 })
@@ -217,6 +225,17 @@ function choices(opts, correct, done) {
 }
 const distractors = (all, correct, n = 3) => shuffle(all.filter(x => x !== correct)).slice(0, n).concat(correct);
 
+// הנקודה הקרובה ביותר על המטרה ללחיצה (לקו המרחק)
+function nearestOn(it, ll) {
+  const pt = turf.point(ll2pt(ll));
+  if (it.p) return it.p;
+  if (it.feat && turf.booleanPointInPolygon(pt, it.feat)) return ll;
+  const lines = it.feat ? [turf.polygonToLine(it.feat)] : it.lines.filter(l => l.length > 1).map(l => turf.lineString(l.map(ll2pt)));
+  let bestP = ll, bd = 1e9;
+  lines.forEach(l => { const n = turf.nearestPointOnLine(l, pt); if (n.properties.dist < bd) { bd = n.properties.dist; bestP = [n.geometry.coordinates[1], n.geometry.coordinates[0]]; } });
+  return bestP;
+}
+
 const MODES = {
   locate() {
     const it = cur = weighted(pool());
@@ -228,12 +247,13 @@ const MODES = {
                : it.lines ? Math.min(...it.lines.filter(l => l.length > 1).map(l => turf.pointToLineDistance(pt, turf.lineString(l.map(ll2pt)))))
                          : turf.distance(pt, turf.point(ll2pt(it.p)));
       const ok = km <= (it.cat === 'zones' ? 5 : 3);
-      record(it.id, ok);
+      const got = record(it.id, ok, pointsFor(km));
+      L.polyline([ll, nearestOn(it, ll)], { color: '#ffb400', weight: 2, dashArray: '5 5' }).addTo(overlay);
       L.circleMarker(ll, { radius: 7, color: '#fff', weight: 3, fillColor: '#ffb400', fillOpacity: 1 }).addTo(overlay).bindTooltip('הלחיצה שלך', { className: 'lbl' });
       drawItem(it, ok ? '#2ecc71' : '#ff5c5c', false);
       const pts = it.feat ? it.feat.geometry.coordinates[0].map(([x, y]) => [y, x]) : it.lines ? it.lines.flat() : [it.p];
       map.fitBounds(L.latLngBounds([ll, ...pts]), { padding: [50, 50], maxZoom: 11 });
-      $('#fb').innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${ok ? 'נכון!' : 'לא מדויק'}</span> מרחק: ${km.toFixed(1)} ק"מ<br>${infoHtml(it)}`;
+      $('#fb').innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${ok ? 'נכון!' : 'לא מדויק'}</span> מרחק: ${km.toFixed(1)} ק"מ · <b>+${got} נק'</b><br>${infoHtml(it)}`;
     };
   },
   bubble() {

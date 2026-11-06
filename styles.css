@@ -9,6 +9,7 @@ header { padding:6px 8px; background:var(--card); }
 .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:6px; font-size:13px; }
 select { background:#24506e; color:var(--fg); border:0; border-radius:6px; padding:4px; }
 #score { margin-inline-start:auto; font-weight:700; }
+#score small { font-weight:400; opacity:.8; }
 #map { flex:1; min-height:200px; }
 #panel { background:var(--card); padding:10px 12px; max-height:45vh; overflow:auto; }
 #q { font-size:20px; font-weight:700; }
