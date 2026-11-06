@@ -21,12 +21,14 @@
   </div>
   <div class="row">
     <select id="cat">
-      <option value="all">הכל</option>
-      <option value="streams">נחלים</option>
+      <option value="trips" selected>טיולים — נחלים ומקומות מוכרים</option>
+      <option value="streams">כל הנחלים</option>
+      <option value="spots">אתרי טיול</option>
       <option value="core">יישובים מרכזיים</option>
       <option value="settlements">כל היישובים (1,400)</option>
       <option value="mountains">הרים ונקודות</option>
       <option value="regions">אזורים</option>
+      <option value="all">הכל</option>
     </select>
     <select id="base">
       <option value="heli">מפת מסוקים</option>
@@ -56,6 +58,7 @@
 <script src="vendor/turf.min.js"></script>
 <script src="data/layers.js"></script>
 <script src="data/places.js"></script>
+<script src="data/hiking.js"></script>
 <script src="data/settlements.js"></script>
 <script src="data/streams.js"></script>
 <script src="data/hatmarim.js"></script>

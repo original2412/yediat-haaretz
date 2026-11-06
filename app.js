@@ -28,7 +28,11 @@ window.STREAMS.forEach(s => ITEMS.push({
   id: 's:' + s.n, cat: 'streams', name: s.n, lines: s.lines, start: s.start, end: s.end, km: s.km,
   bubbles: bubblesOnLine(s.lines), startB: bubblesAtPoint(s.start), endB: bubblesAtPoint(s.end),
 }));
-P.mountains.forEach(m => ITEMS.push({ id: 'm:' + m.n, cat: 'mountains', name: m.n, p: m.p, bubbles: bubblesAtPoint(m.p) }));
+const NOT_TRIP = new Set(['הר עיבל', 'הר גריזים', 'הר בעל חצור']);
+P.mountains.forEach(m => ITEMS.push({ id: 'm:' + m.n, cat: 'mountains', trip: !NOT_TRIP.has(m.n), name: m.n, p: m.p, bubbles: bubblesAtPoint(m.p) }));
+// מקומות טיול מוכרים + סימון הנחלים שמטיילים בהם
+window.HIKING.spots.forEach(s => ITEMS.push({ id: 't:' + s.n, cat: 'spots', trip: true, name: s.n, p: s.p, tip: s.note, bubbles: bubblesAtPoint(s.p) }));
+ITEMS.forEach(it => { if (it.cat === 'streams' && window.HIKING.streams[it.name]) { it.trip = true; it.tip = window.HIKING.streams[it.name]; } });
 const CORE = new Set(P.settlements.map(s => s[0]));
 window.SETTLEMENTS.forEach(([n, lat, lng]) => ITEMS.push({
   id: 'y:' + n, cat: 'settlements', core: CORE.has(n), name: n, p: [lat, lng],
@@ -115,9 +119,11 @@ const recent = [];
 function weighted(all) {
   let list = all.filter(it => !recent.includes(it.id));
   if (!list.length) list = all;
-  if ($('#cat').value === 'all') {
+  const cv = $('#cat').value;
+  if (cv === 'all' || cv === 'trips') {
     const cats = [...new Set(list.map(it => it.cat))];
-    const c = pick(cats);
+    // בטיולים: חצי מהשאלות נחלים
+    const c = cv === 'trips' && cats.includes('streams') && Math.random() < 0.5 ? 'streams' : pick(cats);
     list = list.filter(it => it.cat === c);
   }
   const it = weightedPick(list);
@@ -192,6 +198,7 @@ function infoHtml(it) {
   if (it.zones && it.zones.length) rows.push(`<b>שטחי אש סמוכים:</b> ${it.zones.join(', ')}`);
   if (it.hatmar) rows.push(`<b>${it.hatmar.n}</b> (עיר מרכזית: ${it.hatmar.city})`);
   if (it.note) rows.push(`<b>הערה:</b> ${it.note}`);
+  if (it.tip) rows.unshift(`<b>מוכר בזכות:</b> ${it.tip}`);
   return rows.join('<br>');
 }
 
@@ -199,6 +206,7 @@ function infoHtml(it) {
 let mode = 'locate', cur = null, onMapClick = null;
 const pool = () => {
   const c = $('#cat').value;
+  if (c === 'trips') return ITEMS.filter(it => it.trip);
   if (c === 'core') return ITEMS.filter(it => it.core);
   if (c === 'all') return ITEMS.filter(it => it.cat !== 'settlements' || it.core);
   return ITEMS.filter(it => it.cat === c);
