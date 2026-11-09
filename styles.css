@@ -44,3 +44,11 @@ button.ghost { background:transparent !important; color:var(--fg) !important; bo
 .chip.warn { background:#8a5b00; } .chip.dim { background:#24506e; }
 details { margin-top:10px; font-size:13px; } summary { cursor:pointer; }
 .tabs { flex-wrap:wrap; } .tabs button { font-size:14px; min-width:60px; }
+
+#prog { font-size:12px; opacity:.9; margin-bottom:6px; }
+#prog .bar { display:flex; height:6px; border-radius:3px; background:#24506e; overflow:hidden; margin-bottom:3px; }
+#prog .bar i { display:block; height:100%; }
+#prog .m { color:var(--ok); } #prog .bar .m { background:var(--ok); }
+#prog .k { color:#8fd3a8; } #prog .bar .k { background:#8fd3a8; }
+#prog .l { color:#ffb400; } #prog .bar .l { background:#ffb400; }
+#sched { margin-top:4px; font-size:12px; opacity:.75; letter-spacing:.3px; }

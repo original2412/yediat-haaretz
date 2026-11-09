@@ -101,11 +101,12 @@ let stats = {};
 try { stats = JSON.parse(localStorage.getItem('yh-stats') || '{}'); } catch (e) {}
 // ניקוד: 100 נק' לפגיעה מדויקת, יורד ככל שהלחיצה רחוקה יותר (~70 ב-3 ק"מ, ~25 ב-10 ק"מ).
 const pointsFor = km => km <= 0.5 ? 100 : Math.max(0, Math.round(100 * Math.exp(-(km - 0.5) / 7)));
-function record(id, ok, pts = ok ? 100 : 0) {
+function record(id, ok, pts = ok ? 100 : 0, near = false) {
   const s = stats[id] || (stats[id] = { c: 0, w: 0 });
   ok ? s.c++ : s.w++;
   try { localStorage.setItem('yh-stats', JSON.stringify(stats)); } catch (e) {}
-  if (!ok) requeue();
+  $('#sched').textContent = schedule(ok, near);
+  showProgress();
   session.n++; if (ok) session.ok++;
   session.pts += pts;
   session.streak = ok ? session.streak + 1 : 0;
@@ -115,33 +116,96 @@ function record(id, ok, pts = ok ? 100 : 0) {
 }
 let best = 0;
 try { best = +localStorage.getItem('yh-best') || 0; } catch (e) {}
-// ---------- בחירת שאלה: "חפיסה" מעורבבת ----------
-// כל מקום במאגר עולה פעם אחת לפני שמשהו חוזר. טעות → המקום חוזר פעם אחת אחרי 5–9 שאלות.
-// החפיסה נשמרת במכשיר, כך שגם אחרי סגירת האפליקציה ממשיכים מאותה נקודה.
-let decks = {};
-try { decks = JSON.parse(localStorage.getItem('yh-decks') || '{}'); } catch (e) {}
-const saveDecks = () => { try { localStorage.setItem('yh-decks', JSON.stringify(decks)); } catch (e) {} };
+// ---------- מנוע למידה: חזרה מרווחת (Leitner) + למידה לפי אזורים ----------
+// כל מקום (בכל מצב משחק בנפרד) נמצא ברמה 0–7 ונשמר במכשיר.
+//  · רמות 1–2 = "בלמידה": חוזר אחרי 3 / 8 שאלות.
+//  · רמה 3 ומעלה = "נלמד": חוזר אחרי 1, 3, 7, 16, 35 ימים. רמה 4+ = "שולט".
+//  · נכון → רמה עולה. טעות → חוזר לרמה 1 (פספוס קרוב — יורד רק רמה אחת).
+//  · ניחוש ראשון נכון של מקום חדש → ישר לרמה 3 (כבר הכרת אותו).
+//  · מקומות חדשים נכנסים בקבוצות קטנות (עד 5 בלמידה בבת אחת), ובכל פעם הקרובים
+//    גאוגרפית למה שאתה לומד עכשיו — כך נבנית מפה בראש אזור אחרי אזור.
+const DAY = 864e5;
+const Q_GAPS = [0, 3, 8];
+const DAY_GAPS = [0, 0, 0, 1, 3, 7, 16, 35];
+const MAX_LEARNING = 5;
+let srs = { n: 0, items: {}, recent: [] };
+try { srs = Object.assign(srs, JSON.parse(localStorage.getItem('yh-srs') || '{}')); } catch (e) {}
+try { localStorage.removeItem('yh-decks'); } catch (e) {}
+const saveSrs = () => { try { localStorage.setItem('yh-srs', JSON.stringify(srs)); } catch (e) {} };
+const skey = it => mode + ':' + it.id;
+const isDue = s => s.dq != null ? srs.n >= s.dq : Date.now() >= s.dt;
+const level = it => { const s = srs.items[skey(it)]; return !s ? 'new' : s.b >= 4 ? 'master' : s.b >= 3 ? 'known' : 'learning'; };
+function center(it) {
+  if (!it.c) it.c = it.p || (it.lines ? (l => l[Math.floor(l.length / 2)])(it.lines.reduce((a, l) => l.length > a.length ? l : a, [])) :
+    (c => [c[1], c[0]])(turf.centroid(it.feat).geometry.coordinates));
+  return it.c;
+}
+const kmBetween = (a, b) => turf.distance(turf.point(ll2pt(a)), turf.point(ll2pt(b)));
 let lastPick = null;
 function weighted(all) {
-  const key = mode + '|' + $('#cat').value;
-  const byId = new Map(all.map(it => [it.id, it]));
-  let deck = (decks[key] || []).filter(id => byId.has(id));
-  if (!deck.length) {
-    deck = shuffle([...byId.keys()]);
-    // לא להתחיל חפיסה חדשה במה שנשאל ממש עכשיו
-    if (lastPick && deck.length > 1 && deck[0] === lastPick.id) deck.push(deck.shift());
+  const st = it => srs.items[skey(it)];
+  let cand = all.filter(it => !srs.recent.includes(skey(it)));
+  if (!cand.length) cand = all;
+  let it;
+  // 1. משהו שהגיע זמנו לחזור — קודם הרמות הנמוכות
+  const due = cand.filter(it => st(it) && isDue(st(it))).sort((a, b) => st(a).b - st(b).b);
+  if (due.length) it = pick(due.slice(0, 3));
+  else {
+    const learning = all.filter(it => st(it) && st(it).b <= 2);
+    const fresh = cand.filter(it => !st(it));
+    if (fresh.length && learning.length < MAX_LEARNING) {
+      // 2. מקום חדש — ליד מה שאתה לומד עכשיו (או ליד האחרון שנשאל)
+      const anchors = learning.length ? learning : all.filter(x => srs.recent.slice(-1).includes(skey(x)));
+      if (anchors.length) {
+        const ac = anchors.map(center);
+        const d = it => Math.min(...ac.map(a => kmBetween(a, center(it))));
+        it = pick(fresh.map(x => [d(x), x]).sort((a, b) => a[0] - b[0]).slice(0, 3).map(x => x[1]));
+      } else it = pick(fresh);
+    } else {
+      // 3. אין מה שדחוף: הכי קרוב לחזור מבין מה שבלמידה, אחרת חזרה על מה שלא נראה הכי הרבה זמן
+      const soon = cand.filter(it => st(it) && st(it).dq != null).sort((a, b) => st(a).dq - st(b).dq);
+      const old = cand.filter(it => st(it)).sort((a, b) => (st(a).t || 0) - (st(b).t || 0));
+      it = soon[0] || pick(old.slice(0, 5)) || pick(cand);
+    }
   }
-  const id = deck.shift();
-  decks[key] = deck; saveDecks();
-  lastPick = { key, id };
-  return byId.get(id);
+  srs.recent = [...srs.recent, skey(it)].slice(-3); saveSrs();
+  lastPick = it;
+  return it;
 }
-function requeue() {
-  if (!lastPick) return;
-  const deck = decks[lastPick.key] || (decks[lastPick.key] = []);
-  if (deck.slice(0, 10).includes(lastPick.id)) return;
-  deck.splice(Math.min(deck.length, 5 + Math.floor(Math.random() * 5)), 0, lastPick.id);
-  saveDecks(); lastPick = null;
+// מעדכן את הרמה אחרי תשובה. near = פספוס קרוב (עד 8 ק"מ).
+function schedule(ok, near) {
+  if (!lastPick) return '';
+  const k = skey(lastPick), s = srs.items[k], first = !s;
+  let b = s ? s.b : 0;
+  b = ok ? (first ? 3 : Math.min(7, b + 1)) : near && b > 1 ? Math.min(b - 1, 2) : 1;
+  srs.n++;
+  const rec = { b, t: Date.now() };
+  if (b <= 2) rec.dq = srs.n + Q_GAPS[b]; else rec.dt = Date.now() + DAY_GAPS[b] * DAY - DAY / 8;
+  srs.items[k] = rec; saveSrs(); lastPick = null;
+  const when = b <= 2 ? `יחזור בעוד ${Q_GAPS[b]} שאלות` : `יחזור בעוד ${DAY_GAPS[b] === 1 ? 'יום' : DAY_GAPS[b] + ' ימים'}`;
+  return `${'●'.repeat(Math.min(b, 7))}${'○'.repeat(7 - Math.min(b, 7))} רמה ${b} · ${when}`;
+}
+function progressHtml(list) {
+  const c = { new: 0, learning: 0, known: 0, master: 0 };
+  list.forEach(it => c[level(it)]++);
+  const tot = list.length || 1, w = n => (100 * n / tot).toFixed(1) + '%';
+  return `<div class="bar"><i class="m" style="width:${w(c.master)}"></i><i class="k" style="width:${w(c.known)}"></i><i class="l" style="width:${w(c.learning)}"></i></div>
+    <span class="m">שולט ${c.master}</span> · <span class="k">נלמד ${c.known}</span> · <span class="l">בלמידה ${c.learning}</span> · חדשים ${c.new}`;
+}
+// "עוגן": המקום המוכר הקרוב ביותר, כדי לקשר את המקום החדש למשהו שכבר בראש
+const DIRS = ['צפונית', 'צפון-מזרחית', 'מזרחית', 'דרום-מזרחית', 'דרומית', 'דרום-מערבית', 'מערבית', 'צפון-מערבית'];
+function anchorText(it) {
+  if (!it.p) return '';
+  const cands = ITEMS.filter(x => x !== it && x.p && (x.trip || x.core));
+  const known = cands.filter(x => level(x) !== 'new' || srs.items['locate:' + x.id]);
+  const near = list => list.map(x => [kmBetween(x.p, it.p), x]).sort((a, b) => a[0] - b[0])[0];
+  let best = near(known);
+  if (!best || best[0] > 15) best = near(cands);
+  if (!best) return '';
+  const [km, a] = best;
+  if (km < 1) return `📍 צמוד ל${a.name}`;
+  const brg = (turf.bearing(turf.point(ll2pt(a.p)), turf.point(ll2pt(it.p))) + 360 + 22.5) % 360;
+  return `📍 כ-${km < 3 ? km.toFixed(1) : Math.round(km)} ק"מ ${DIRS[Math.floor(brg / 45)]} ל${a.name}`;
 }
 const session = { n: 0, ok: 0, pts: 0, streak: 0 };
 
@@ -223,7 +287,7 @@ map.on('click', e => onMapClick && onMapClick([e.latlng.lat, e.latlng.lng]));
 
 function reset() {
   overlay.clearLayers(); onMapClick = null; lastPick = null;
-  $('#choices').innerHTML = ''; $('#fb').innerHTML = '';
+  $('#choices').innerHTML = ''; $('#fb').innerHTML = ''; $('#sched').textContent = '';
 }
 function choices(opts, correct, done) {
   const box = $('#choices');
@@ -263,17 +327,17 @@ const MODES = {
                : it.lines ? Math.min(...it.lines.filter(l => l.length > 1).map(l => turf.pointToLineDistance(pt, turf.lineString(l.map(ll2pt)))))
                          : turf.distance(pt, turf.point(ll2pt(it.p)));
       const ok = km <= (it.cat === 'zones' ? 5 : 3);
-      const got = record(it.id, ok, pointsFor(km));
+      const got = record(it.id, ok, pointsFor(km), km <= 8);
       L.polyline([ll, nearestOn(it, ll)], { color: '#ffb400', weight: 2, dashArray: '5 5' }).addTo(overlay);
       L.circleMarker(ll, { radius: 7, color: '#fff', weight: 3, fillColor: '#ffb400', fillOpacity: 1 }).addTo(overlay).bindTooltip('הלחיצה שלך', { className: 'lbl' });
       drawItem(it, ok ? '#2ecc71' : '#ff5c5c', false);
       const pts = it.feat ? it.feat.geometry.coordinates[0].map(([x, y]) => [y, x]) : it.lines ? it.lines.flat() : [it.p];
       map.fitBounds(L.latLngBounds([ll, ...pts]), { padding: [50, 50], maxZoom: 11 });
-      $('#fb').innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${ok ? 'נכון!' : 'לא מדויק'}</span> מרחק: ${km.toFixed(1)} ק"מ · <b>+${got} נק'</b><br>${infoHtml(it)}`;
+      $('#fb').innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${ok ? 'נכון!' : 'לא מדויק'}</span> מרחק: ${km.toFixed(1)} ק"מ · <b>+${got} נק'</b><br>${anchorText(it) ? anchorText(it) + '<br>' : ''}${infoHtml(it)}`;
     };
   },
   bubble() {
-    const list = pool().filter(it => !it.lines && it.bubbles.length);
+    const list = MODE_POOL.bubble();
     const it = cur = weighted(list);
     const correctList = it.lines ? it.startB : it.bubbles;
     const correct = short(correctList[0]);
@@ -320,7 +384,7 @@ const MODES = {
     }
   },
   region() {
-    const list = pool().filter(it => it.region || it.lines);
+    const list = MODE_POOL.region();
     const it = cur = weighted(list);
     const kinds = it.lines ? ['from', 'to', 'region'] : ['region'];
     const kind = pick(kinds);
@@ -367,8 +431,19 @@ function renderList() {
 }
 $('#search').oninput = renderList;
 
+const MODE_POOL = {
+  locate: () => pool(),
+  bubble: () => pool().filter(it => !it.lines && it.bubbles.length),
+  region: () => pool().filter(it => it.region || it.lines),
+};
+function showProgress() {
+  const f = MODE_POOL[mode];
+  $('#prog').hidden = !f;
+  if (f) $('#prog').innerHTML = progressHtml(f());
+}
 function next() {
   reset();
+  showProgress();
   $('#explore').hidden = mode !== 'explore';
   $('#listmode').hidden = mode !== 'list';
   $('#listmode').innerHTML = '';
