@@ -105,6 +105,7 @@ function record(id, ok, pts = ok ? 100 : 0) {
   const s = stats[id] || (stats[id] = { c: 0, w: 0 });
   ok ? s.c++ : s.w++;
   try { localStorage.setItem('yh-stats', JSON.stringify(stats)); } catch (e) {}
+  if (!ok) requeue();
   session.n++; if (ok) session.ok++;
   session.pts += pts;
   session.streak = ok ? session.streak + 1 : 0;
@@ -114,26 +115,33 @@ function record(id, ok, pts = ok ? 100 : 0) {
 }
 let best = 0;
 try { best = +localStorage.getItem('yh-best') || 0; } catch (e) {}
-const weight = id => { const s = stats[id]; return s ? Math.max(0.3, Math.min(4, 1 + 1.5 * s.w - s.c)) : 1.5; };
-const recent = [];
+// ---------- בחירת שאלה: "חפיסה" מעורבבת ----------
+// כל מקום במאגר עולה פעם אחת לפני שמשהו חוזר. טעות → המקום חוזר פעם אחת אחרי 5–9 שאלות.
+// החפיסה נשמרת במכשיר, כך שגם אחרי סגירת האפליקציה ממשיכים מאותה נקודה.
+let decks = {};
+try { decks = JSON.parse(localStorage.getItem('yh-decks') || '{}'); } catch (e) {}
+const saveDecks = () => { try { localStorage.setItem('yh-decks', JSON.stringify(decks)); } catch (e) {} };
+let lastPick = null;
 function weighted(all) {
-  let list = all.filter(it => !recent.includes(it.id));
-  if (!list.length) list = all;
-  const cv = $('#cat').value;
-  if (cv === 'all' || cv === 'trips') {
-    const cats = [...new Set(list.map(it => it.cat))];
-    // בטיולים: חצי מהשאלות נחלים
-    const c = cv === 'trips' && cats.includes('streams') && Math.random() < 0.5 ? 'streams' : pick(cats);
-    list = list.filter(it => it.cat === c);
+  const key = mode + '|' + $('#cat').value;
+  const byId = new Map(all.map(it => [it.id, it]));
+  let deck = (decks[key] || []).filter(id => byId.has(id));
+  if (!deck.length) {
+    deck = shuffle([...byId.keys()]);
+    // לא להתחיל חפיסה חדשה במה שנשאל ממש עכשיו
+    if (lastPick && deck.length > 1 && deck[0] === lastPick.id) deck.push(deck.shift());
   }
-  const it = weightedPick(list);
-  recent.push(it.id); if (recent.length > Math.min(40, Math.floor(all.length / 2))) recent.shift();
-  return it;
+  const id = deck.shift();
+  decks[key] = deck; saveDecks();
+  lastPick = { key, id };
+  return byId.get(id);
 }
-function weightedPick(list) {
-  let r = Math.random() * list.reduce((a, it) => a + weight(it.id), 0);
-  for (const it of list) { r -= weight(it.id); if (r <= 0) return it; }
-  return list[list.length - 1];
+function requeue() {
+  if (!lastPick) return;
+  const deck = decks[lastPick.key] || (decks[lastPick.key] = []);
+  if (deck.slice(0, 10).includes(lastPick.id)) return;
+  deck.splice(Math.min(deck.length, 5 + Math.floor(Math.random() * 5)), 0, lastPick.id);
+  saveDecks(); lastPick = null;
 }
 const session = { n: 0, ok: 0, pts: 0, streak: 0 };
 
@@ -214,7 +222,7 @@ const pool = () => {
 map.on('click', e => onMapClick && onMapClick([e.latlng.lat, e.latlng.lng]));
 
 function reset() {
-  overlay.clearLayers(); onMapClick = null;
+  overlay.clearLayers(); onMapClick = null; lastPick = null;
   $('#choices').innerHTML = ''; $('#fb').innerHTML = '';
 }
 function choices(opts, correct, done) {
