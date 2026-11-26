@@ -29,7 +29,11 @@ window.STREAMS.forEach(s => ITEMS.push({
   bubbles: bubblesOnLine(s.lines), startB: bubblesAtPoint(s.start), endB: bubblesAtPoint(s.end),
 }));
 const NOT_TRIP = new Set(['הר עיבל', 'הר גריזים', 'הר בעל חצור']);
-P.mountains.forEach(m => ITEMS.push({ id: 'm:' + m.n, cat: 'mountains', trip: !NOT_TRIP.has(m.n), name: m.n, p: m.p, bubbles: bubblesAtPoint(m.p) }));
+function areaFeat(m) {
+  if (m.ell) return turf.ellipse(ll2pt(m.p), m.ell[0], m.ell[1], { units: 'kilometers', angle: -m.ell[2], steps: 48 });
+  if (m.line) return turf.buffer(turf.lineString(m.line.map(ll2pt)), m.w, { units: 'kilometers', steps: 6 });
+}
+P.mountains.forEach(m => ITEMS.push({ id: 'm:' + m.n, cat: 'mountains', trip: !NOT_TRIP.has(m.n), name: m.n, p: m.p, feat: areaFeat(m), area: !!(m.ell || m.line), bubbles: bubblesAtPoint(m.p) }));
 // מקומות טיול מוכרים + סימון הנחלים שמטיילים בהם
 window.HIKING.spots.forEach(s => ITEMS.push({ id: 't:' + s.n, cat: 'spots', trip: true, name: s.n, p: s.p, tip: s.note, bubbles: bubblesAtPoint(s.p) }));
 ITEMS.forEach(it => { if (it.cat === 'streams' && window.HIKING.streams[it.name]) { it.trip = true; it.tip = window.HIKING.streams[it.name]; } });
@@ -261,7 +265,7 @@ function infoHtml(it) {
     rows.push(`<b>מתחיל:</b> ${it.from}`);
     rows.push(`<b>מסתיים:</b> ${it.to}`);
     rows.push(`<b>עובר בבועות:</b> ${it.bubbles.map(short).join(', ') || '—'}`);
-  } else if (it.feat) {
+  } else if (it.feat && !it.p) {
     return '';
   } else {
     if (it.region) rows.push(`<b>אזור:</b> ${it.region}`);
@@ -308,34 +312,42 @@ const distractors = (all, correct, n = 3) => shuffle(all.filter(x => x !== corre
 // הנקודה הקרובה ביותר על המטרה ללחיצה (לקו המרחק)
 function nearestOn(it, ll) {
   const pt = turf.point(ll2pt(ll));
-  if (it.p) return it.p;
   if (it.feat && turf.booleanPointInPolygon(pt, it.feat)) return ll;
+  if (!it.feat && it.p) return it.p;
   const lines = it.feat ? [turf.polygonToLine(it.feat)] : it.lines.filter(l => l.length > 1).map(l => turf.lineString(l.map(ll2pt)));
   let bestP = ll, bd = 1e9;
   lines.forEach(l => { const n = turf.nearestPointOnLine(l, pt); if (n.properties.dist < bd) { bd = n.properties.dist; bestP = [n.geometry.coordinates[1], n.geometry.coordinates[0]]; } });
   return bestP;
 }
 
+// בודק לחיצה מול מקום: מרחק בק"מ (0 = בתוך אזור), מצייר את התשובה על המפה.
+function judge(it, ll) {
+  const pt = turf.point(ll2pt(ll));
+  const km = it.feat ? (turf.booleanPointInPolygon(pt, it.feat) ? 0 : turf.pointToLineDistance(pt, turf.polygonToLine(it.feat)))
+           : it.lines ? Math.min(...it.lines.filter(l => l.length > 1).map(l => turf.pointToLineDistance(pt, turf.lineString(l.map(ll2pt)))))
+                     : turf.distance(pt, turf.point(ll2pt(it.p)));
+  const ok = km <= 3;
+  if (km > 0) L.polyline([ll, nearestOn(it, ll)], { color: '#ffb400', weight: 2, dashArray: '5 5' }).addTo(overlay);
+  L.circleMarker(ll, { radius: 7, color: '#fff', weight: 3, fillColor: '#ffb400', fillOpacity: 1 }).addTo(overlay).bindTooltip('הלחיצה שלך', { className: 'lbl' });
+  drawItem(it, ok ? '#2ecc71' : '#ff5c5c', false);
+  const pts = it.feat ? it.feat.geometry.coordinates[0].map(([x, y]) => [y, x]) : it.lines ? it.lines.flat() : [it.p];
+  map.fitBounds(L.latLngBounds([ll, ...pts]), { padding: [50, 50], maxZoom: 11 });
+  return { km, ok };
+}
+const askHtml = it => `איפה ${it.name}?<small>לחץ על המפה${it.lines ? ' (בכל נקודה לאורך הנחל)' : it.feat ? ' (בכל מקום בתוך האזור)' : ''}</small>`;
+
 const MODES = {
   locate() {
     const it = cur = weighted(pool());
-    $('#q').innerHTML = `איפה ${it.name}?<small>לחץ על המפה${it.lines ? ' (בכל נקודה לאורך הנחל)' : it.feat ? ' (בתוך האזור)' : ''}</small>`;
+    $('#q').innerHTML = askHtml(it);
     onMapClick = ll => {
       onMapClick = null;
-      const pt = turf.point(ll2pt(ll));
-      const km = it.feat ? (turf.booleanPointInPolygon(pt, it.feat) ? 0 : turf.pointToLineDistance(pt, turf.polygonToLine(it.feat)))
-               : it.lines ? Math.min(...it.lines.filter(l => l.length > 1).map(l => turf.pointToLineDistance(pt, turf.lineString(l.map(ll2pt)))))
-                         : turf.distance(pt, turf.point(ll2pt(it.p)));
-      const ok = km <= (it.cat === 'zones' ? 5 : 3);
+      const { km, ok } = judge(it, ll);
       const got = record(it.id, ok, pointsFor(km), km <= 8);
-      L.polyline([ll, nearestOn(it, ll)], { color: '#ffb400', weight: 2, dashArray: '5 5' }).addTo(overlay);
-      L.circleMarker(ll, { radius: 7, color: '#fff', weight: 3, fillColor: '#ffb400', fillOpacity: 1 }).addTo(overlay).bindTooltip('הלחיצה שלך', { className: 'lbl' });
-      drawItem(it, ok ? '#2ecc71' : '#ff5c5c', false);
-      const pts = it.feat ? it.feat.geometry.coordinates[0].map(([x, y]) => [y, x]) : it.lines ? it.lines.flat() : [it.p];
-      map.fitBounds(L.latLngBounds([ll, ...pts]), { padding: [50, 50], maxZoom: 11 });
-      $('#fb').innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${ok ? 'נכון!' : 'לא מדויק'}</span> מרחק: ${km.toFixed(1)} ק"מ · <b>+${got} נק'</b><br>${anchorText(it) ? anchorText(it) + '<br>' : ''}${infoHtml(it)}`;
+      $('#fb').innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${ok ? 'נכון!' : 'לא מדויק'}</span> ${km || !it.feat ? `מרחק: ${km.toFixed(1)} ק"מ` : 'בתוך האזור'} · <b>+${got} נק'</b><br>${anchorText(it) ? anchorText(it) + '<br>' : ''}${infoHtml(it)}`;
     };
   },
+  daily() { Daily.show(); },
   bubble() {
     const list = MODE_POOL.bubble();
     const it = cur = weighted(list);
@@ -447,8 +459,8 @@ function next() {
   $('#explore').hidden = mode !== 'explore';
   $('#listmode').hidden = mode !== 'list';
   $('#listmode').innerHTML = '';
-  $('#next').hidden = mode === 'explore' || mode === 'list';
-  $('#cat').disabled = mode === 'hatmar' || mode === 'list';
+  $('#next').hidden = mode === 'explore' || mode === 'list' || mode === 'daily';
+  $('#cat').disabled = mode === 'hatmar' || mode === 'list' || mode === 'daily';
   MODES[mode]();
 }
 $('#next').onclick = next;
