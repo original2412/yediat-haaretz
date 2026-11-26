@@ -1,5 +1,5 @@
 // קבצי האפליקציה: רשת קודם (לקבל עדכונים), מטמון כגיבוי. אריחי מפה: מטמון קודם.
-const APP = 'yh-app-v13', TILES = 'yh-tiles';
+const APP = 'yh-app-v14', TILES = 'yh-tiles';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.json', 'icon.svg',
   'vendor/leaflet.css', 'vendor/leaflet.js', 'vendor/turf.min.js',
   'data/places.js', 'data/hiking.js', 'data/streams.js', 'data/regions.js'];
@@ -25,7 +25,7 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (new URL(req.url).origin !== location.origin) return;
-  e.respondWith(fetch(req).then(res => {
+  e.respondWith(fetch(req, { cache: 'no-cache' }).then(res => {
     if (res.ok) { const copy = res.clone(); caches.open(APP).then(c => c.put(req, copy)); }
     return res;
   }).catch(() => caches.match(req, { ignoreSearch: true })));

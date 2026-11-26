@@ -381,6 +381,14 @@ $('#offline').onclick = async () => {
   btn.disabled = false;
 };
 
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');
+const VERSION = '1.4';
+$('#version').textContent = `גרסה ${VERSION}`;
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  // בודק עדכון בכל פתיחה, ואם יש גרסה חדשה — טוען אותה מיד
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
+}
 let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { lockZoom(); if (onMapClick) fitIsrael(); }, 150); });
 go(mode);
