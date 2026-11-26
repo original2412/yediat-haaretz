@@ -2,74 +2,62 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<meta name="theme-color" content="#14324a">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f2a3d">
+<meta name="description" content="ידיעת הארץ — אתגר יומי ותרגול: נחלים, אתרי טיול, הרים ויישובים על מפת המסוקים.">
 <link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
 <title>ידיעת הארץ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&display=swap">
 <link rel="stylesheet" href="vendor/leaflet.css">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<header>
-  <div class="tabs">
-    <button data-mode="daily">🏆 יומי</button>
-    <button data-mode="locate" class="on">איפה זה?</button>
-    <button data-mode="bubble">איזו בועה?</button>
-    <button data-mode="region">אזור</button>
-    <button data-mode="hatmar">חטמ"רים</button>
-    <button data-mode="list">רשימה</button>
-    <button data-mode="explore">עיון</button>
+<div id="map" aria-label="מפה"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="icon.svg" alt="" width="30" height="30">
+    <span>ידיעת הארץ</span>
   </div>
-  <div class="row">
-    <select id="cat">
-      <option value="trips" selected>טיולים — נחלים ומקומות מוכרים</option>
-      <option value="streams">כל הנחלים</option>
-      <option value="spots">אתרי טיול</option>
-      <option value="core">יישובים מרכזיים</option>
-      <option value="settlements">כל היישובים (1,400)</option>
-      <option value="mountains">הרים ונקודות</option>
-      <option value="regions">אזורים</option>
-      <option value="all">הכל</option>
-    </select>
-    <select id="base">
-      <option value="heli">מפת מסוקים</option>
-      <option value="silent">מפה אילמת</option>
-      <option value="sat">לוויין</option>
-    </select>
-    <label><input type="checkbox" id="showBubbles"> גבולות בועות</label>
-    <button id="offline" hidden>⬇ הורד מפה</button>
-    <span id="score"></span>
-  </div>
+  <nav class="seg" role="tablist" aria-label="מצב משחק">
+    <button role="tab" data-mode="daily">אתגר יומי</button>
+    <button role="tab" data-mode="practice">תרגול</button>
+  </nav>
+  <button class="icon-btn" id="menuBtn" aria-label="הגדרות">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7zm7.4-2.5a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.8 1.7 1L11 21h4l.4-2.9c.6-.2 1.2-.6 1.7-1l2.5 1 2-3.5z"/></svg>
+  </button>
 </header>
-<div id="map"></div>
-<section id="panel">
-  <div id="prog"></div>
-  <div id="q"></div>
-  <div id="choices"></div>
-  <div id="fb"></div>
-  <div id="sched"></div>
-  <div class="actions">
-    <button id="next">הבא ←</button>
-  </div>
-  <div id="listmode" hidden></div>
-  <div id="explore" hidden>
-    <input id="search" placeholder="חיפוש מקום…">
-    <ul id="list"></ul>
-  </div>
+
+<section class="sheet" id="sheet" aria-live="polite">
+  <div class="grip" aria-hidden="true"></div>
+  <div id="view"></div>
 </section>
+
+<dialog id="menu">
+  <form method="dialog">
+    <h2>הגדרות</h2>
+    <fieldset>
+      <legend>סוג מפה</legend>
+      <label><input type="radio" name="base" value="heli" checked> מפת מסוקים</label>
+      <label><input type="radio" name="base" value="silent"> מפה אילמת (בלי שמות — קשה יותר)</label>
+      <label><input type="radio" name="base" value="sat"> תצלום לוויין</label>
+    </fieldset>
+    <button type="button" class="btn ghost wide" id="offline">⬇ הורדת המפה לשימוש בלי קליטה</button>
+    <p class="fine">מפת המסוקים: © Davidi Hollander / רת"א. נחלים: © תורמי OpenStreetMap. מיקומים מקורבים — לאמת מול המפה הרשמית.</p>
+    <button class="btn primary wide" value="close">סגירה</button>
+  </form>
+</dialog>
+
 <script src="vendor/leaflet.js"></script>
 <script src="vendor/turf.min.js"></script>
-<script src="data/layers.js"></script>
 <script src="data/places.js"></script>
 <script src="data/hiking.js"></script>
-<script src="data/settlements.js"></script>
 <script src="data/streams.js"></script>
-<script src="data/hatmarim.js"></script>
-<script src="data/zones.js"></script>
 <script src="data/regions.js"></script>
-<script src="data/lists.js"></script>
 <script src="app.js"></script>
-<script src="list.js"></script>
-<script src="daily.js"></script>
 </body>
 </html>
