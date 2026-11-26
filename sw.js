@@ -1,5 +1,5 @@
 // קבצי האפליקציה: רשת קודם (לקבל עדכונים), מטמון כגיבוי. אריחי מפה: מטמון קודם.
-const APP = 'yh-app-v12', TILES = 'yh-tiles';
+const APP = 'yh-app-v13', TILES = 'yh-tiles';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.json', 'icon.svg',
   'vendor/leaflet.css', 'vendor/leaflet.js', 'vendor/turf.min.js',
   'data/places.js', 'data/hiking.js', 'data/streams.js', 'data/regions.js'];

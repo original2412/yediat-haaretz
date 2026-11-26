@@ -135,15 +135,11 @@ function factsHtml(it) {
 
 // ===================== מפה =====================
 const ISRAEL = L.latLngBounds([29.45, 34.25], [33.35, 35.92]);
-const map = L.map('map', { zoomControl: false, attributionControl: false, minZoom: 6, maxZoom: 14, zoomSnap: 0.25, maxBounds: ISRAEL.pad(0.6) });
+const map = L.map('map', { zoomControl: false, attributionControl: false, minZoom: 7, maxZoom: 13, zoomSnap: 0.25,
+  maxBounds: ISRAEL.pad(0.15), maxBoundsViscosity: 1 });
 L.control.zoom({ position: 'topleft', zoomInTitle: 'התקרבות', zoomOutTitle: 'התרחקות' }).addTo(map);
-const BASES = {
-  heli: L.tileLayer('https://flight-maps.com/tiles/il-hel/{z}/{x}/{y}.png', { maxNativeZoom: 12 }),
-  silent: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png', { subdomains: 'abcd' }),
-  sat: L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
-};
-let baseKey = BASES[store.get('yh-base', 'heli')] ? store.get('yh-base', 'heli') : 'heli';
-let base = BASES[baseKey].addTo(map);
+// מפת נתיבי המסוקים (flight-maps.com, ?map=heli) — המפה היחידה באפליקציה
+L.tileLayer('https://flight-maps.com/tiles/il-hel/{z}/{x}/{y}.png', { maxNativeZoom: 12, bounds: ISRAEL.pad(0.15) }).addTo(map);
 const overlay = L.layerGroup().addTo(map);
 
 const wide = () => matchMedia('(min-width: 900px)').matches;
@@ -152,7 +148,12 @@ function pad() {
   return wide() ? { paddingTopLeft: [24, top], paddingBottomRight: [sheet.offsetWidth + 48, 24] }
                 : { paddingTopLeft: [12, top], paddingBottomRight: [12, sheet.offsetHeight + 12] };
 }
-const fitIsrael = () => map.fitBounds(ISRAEL, { ...pad(), animate: false });
+// אי אפשר להתרחק יותר מ"כל הארץ על המסך"
+function lockZoom() {
+  const p = pad(), total = L.point(p.paddingTopLeft).add(p.paddingBottomRight);
+  map.setMinZoom(Math.max(6, Math.floor(map.getBoundsZoom(ISRAEL, false, total) * 4) / 4));
+}
+const fitIsrael = () => { lockZoom(); map.fitBounds(ISRAEL, { ...pad(), animate: false }); };
 
 const pinIcon = cls => L.divIcon({ className: '', html: `<div class="pin ${cls}"></div>`, iconSize: [22, 22], iconAnchor: [11, 11] });
 const label = (layer, text) => layer.bindTooltip(esc(text), { permanent: true, direction: 'top', offset: [0, -10], className: 'maplabel' });
@@ -356,10 +357,7 @@ document.querySelectorAll('.seg button').forEach(b => b.onclick = () => go(b.dat
 
 // הגדרות
 const menu = $('#menu');
-$('#menuBtn').onclick = () => { menu.querySelector(`[value=${baseKey}]`).checked = true; menu.showModal(); };
-menu.querySelectorAll('[name=base]').forEach(r => r.onchange = () => {
-  map.removeLayer(base); baseKey = r.value; base = BASES[baseKey].addTo(map); base.bringToBack(); store.set('yh-base', baseKey);
-});
+$('#menuBtn').onclick = () => menu.showModal();
 menu.addEventListener('click', e => { if (e.target === menu) menu.close(); });
 
 // הורדת מפת המסוקים לשימוש בלי רשת
@@ -384,5 +382,5 @@ $('#offline').onclick = async () => {
 };
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');
-let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (onMapClick) fitIsrael(); }, 150); });
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { lockZoom(); if (onMapClick) fitIsrael(); }, 150); });
 go(mode);
