@@ -360,7 +360,7 @@ const menu = $('#menu');
 $('#menuBtn').onclick = () => menu.showModal();
 menu.addEventListener('click', e => { if (e.target === menu) menu.close(); });
 
-const VERSION = '1.5';
+const VERSION = '1.6';
 $('#version').textContent = `גרסה ${VERSION}`;
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   // בודק עדכון בכל פתיחה, ואם יש גרסה חדשה — טוען אותה מיד
