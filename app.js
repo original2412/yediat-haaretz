@@ -332,6 +332,7 @@ const Daily = {
       <ol class="rlist">${items.map((it, i) => { const r = this.st.res[i] || { pts: 0, km: 0 };
         return `<li data-i="${i}"><i class="dot ${tone(r.pts)}"></i><span class="n">${esc(it.name)}</span><span class="m">${r.km ? r.km + ' ק"מ' : 'פגיעה'}</span><b>${r.pts}</b></li>`; }).join('')}</ol>
       </div>`;
+    if (window.Board) { const lb = document.createElement('div'); view.querySelector('.final').insertBefore(lb, view.querySelector('.rlist')); Board.renderDaily(lb, this.st); }
     requestAnimationFrame(() => map.fitBounds(L.featureGroup(overlay.getLayers()).getBounds(), { ...pad(), maxZoom: 9, animate: false }));
     $('#share').onclick = () => this.share();
     view.querySelectorAll('.rlist li').forEach(li => li.onclick = () => showAnswer(items[+li.dataset.i], null));
@@ -346,6 +347,7 @@ const Daily = {
 
 // ===================== ניווט =====================
 const MODES = { daily: Daily, practice: Practice };
+if (window.Board) { MODES.board = Board; $('[data-mode=board]').hidden = false; }
 let mode = MODES[store.get('yh-mode', 'daily')] ? store.get('yh-mode', 'daily') : 'daily';
 function go(m) {
   mode = m; store.set('yh-mode', m); onMapClick = null;
@@ -360,7 +362,7 @@ const menu = $('#menu');
 $('#menuBtn').onclick = () => menu.showModal();
 menu.addEventListener('click', e => { if (e.target === menu) menu.close(); });
 
-const VERSION = '1.6';
+const VERSION = '1.7';
 $('#version').textContent = `גרסה ${VERSION}`;
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   // בודק עדכון בכל פתיחה, ואם יש גרסה חדשה — טוען אותה מיד

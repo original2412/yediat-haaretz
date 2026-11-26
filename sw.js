@@ -1,8 +1,9 @@
 // קבצי האפליקציה: רשת קודם (לקבל עדכונים), מטמון כגיבוי. אריחי מפה: מטמון קודם.
-const APP = 'yh-app-v16', TILES = 'yh-tiles';
+const APP = 'yh-app-v17', TILES = 'yh-tiles';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.json', 'icon.svg',
   'vendor/leaflet.css', 'vendor/leaflet.js', 'vendor/turf.min.js',
-  'data/places.js', 'data/hiking.js', 'data/streams.js', 'data/regions.js'];
+  'data/places.js', 'data/hiking.js', 'data/streams.js', 'data/regions.js',
+  'leaderboard.js', 'vendor/firebase-app-compat.js', 'vendor/firebase-auth-compat.js', 'vendor/firebase-firestore-compat.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(APP).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

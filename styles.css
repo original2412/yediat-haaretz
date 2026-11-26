@@ -48,7 +48,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .seg button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
 .icon-btn { border: 0; background: var(--surface-2); color: var(--muted); width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex: none; }
 .icon-btn:hover { color: var(--text); }
-@media (max-width: 380px) { .brand span { display: none; } }
+@media (max-width: 430px) { .brand span { display: none; } }
+.seg button { white-space: nowrap; }
 
 /* ---------- כרטיס תחתון / לוח צד ---------- */
 .sheet { position: fixed; z-index: 999; left: 0; right: 0; bottom: 0; max-height: 52vh; overflow: auto; overscroll-behavior: contain;
@@ -151,3 +152,22 @@ fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; }
 legend { font-weight: 700; font-size: 14px; color: var(--muted); margin-bottom: 4px; }
 fieldset label { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); }
 fieldset input { accent-color: var(--accent); width: 18px; height: 18px; }
+
+/* ---------- טבלת דירוג ---------- */
+.lbwrap { text-align: start; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.lbwrap h3, .boardview h3 { font-size: 16px; margin: 0 0 8px; }
+.board { list-style: none; padding: 0; margin: 0; border-radius: 14px; overflow: hidden; background: var(--line); display: grid; gap: 1px; }
+.board li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface-2); font-size: 15px; }
+.board li.me { background: var(--info-bg); font-weight: 700; }
+.board .pos { width: 28px; text-align: center; font-weight: 700; color: var(--muted); }
+.board .who { flex: 1; display: flex; flex-direction: column; }
+.board .who small { font-size: 12px; color: var(--muted); font-weight: 400; }
+.board b { font-variant-numeric: tabular-nums; }
+.join { display: grid; gap: 8px; padding: 12px; border-radius: 14px; background: var(--surface-2); margin-bottom: 12px; }
+.join .row { display: flex; gap: 8px; }
+.join input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 11px 12px; font: inherit; background: var(--surface); color: var(--text); }
+.join .err { margin: 0; color: var(--bad); font-size: 13px; min-height: 1em; }
+.mine { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
+.mine b { color: var(--text); }
+.empty { color: var(--muted); text-align: center; padding: 16px 0; }
+.seg.small { max-width: none; margin: 0 0 14px; }
